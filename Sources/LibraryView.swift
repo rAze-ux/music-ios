@@ -134,7 +134,7 @@ struct SongsSection: View {
     var body: some View {
         List {
             ForEach(Array(sorted.enumerated()), id: \.element.id) { i, t in
-                TrackListButton(track: t, context: sorted, showNumber: false)
+                TrackListButton(track: t, context: sorted, showNumber: nil)
             }
         }
         .listStyle(.plain)

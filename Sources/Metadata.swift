@@ -43,7 +43,11 @@ enum MetadataReader {
         meta.title = text(.commonIdentifierTitle)
         meta.artist = text(.commonIdentifierArtist)
         meta.album = text(.commonIdentifierAlbumName)
-        meta.genre = text(.commonIdentifierGenre)
+        // жанр берём через common-ключ ("genre"), у commonIdentifierGenre нет Swift-члена
+        for item in items where item.commonKey?.rawValue == "genre" {
+            meta.genre = item.stringValue ?? ""
+            break
+        }
         meta.albumArtist = text(.iTunesMetadataAlbumArtist)
         let dateStr = text(.commonIdentifierCreationDate)
         meta.year = Int(dateStr.prefix { $0.isNumber }) ?? 0
