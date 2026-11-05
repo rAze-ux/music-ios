@@ -15,6 +15,8 @@ struct Track: Identifiable, Codable, Hashable {
     var artwork: Data?
     var addedAt: Date
     var playCount: Int
+    var lyrics: String?
+    var bpm: Double?
 
     var id: String { relativePath }
 

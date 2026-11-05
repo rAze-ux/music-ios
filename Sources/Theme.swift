@@ -146,6 +146,68 @@ struct TrackMenu: ViewModifier {
 
 extension Notification.Name {
     static let amShowAddToPlaylist = Notification.Name("amShowAddToPlaylist")
+    static let amResetPlayStats = Notification.Name("amResetPlayStats")
+}
+
+// MARK: - lyrics
+
+struct LyricLine: Identifiable {
+    let id: Int
+    let time: TimeInterval?
+    let text: String
+}
+
+func parseLyrics(_ raw: String) -> [LyricLine] {
+    var out: [LyricLine] = []
+    let regex = try? NSRegularExpression(pattern: "\\[(\\d{1,2}):(\\d{1,2})(?:[.:](\\d{1,3}))?\\]")
+    for rawLine in raw.components(separatedBy: .newlines) {
+        let line = rawLine.trimmingCharacters(in: .whitespaces)
+        if line.isEmpty { continue }
+        var time: TimeInterval?
+        var text = line
+        if let re = regex {
+            let ns = line as NSString
+            let matches = re.matches(in: line, range: NSRange(location: 0, length: ns.length))
+            if let m = matches.first, m.range.location == 0 {
+                let mm = Double(ns.substring(with: m.range(at: 1))) ?? 0
+                let ss = Double(ns.substring(with: m.range(at: 2))) ?? 0
+                var frac = 0.0
+                if m.range(at: 3).location != NSNotFound {
+                    frac = Double("0." + ns.substring(with: m.range(at: 3))) ?? 0
+                }
+                time = mm * 60 + ss + frac
+                text = String(ns.substring(from: m.range.upperBound)).trimmingCharacters(in: .whitespaces)
+            }
+        }
+        if !text.isEmpty {
+            out.append(LyricLine(id: out.count, time: time, text: text))
+        }
+    }
+    return out
+}
+
+func lyricsAreSynced(_ lines: [LyricLine]) -> Bool {
+    let withTime = lines.filter { $0.time != nil }.count
+    return lines.count >= 4 && withTime >= lines.count / 2
+}
+
+func currentLyricIndex(_ lines: [LyricLine], at t: TimeInterval) -> Int? {
+    var result: Int?
+    for (i, line) in lines.enumerated() {
+        if let time = line.time, time <= t { result = i } else if time != nil { break }
+    }
+    return result
+}
+
+extension UIImage {
+    func resized(maxSide: CGFloat) -> UIImage {
+        let maxDim = max(size.width, size.height)
+        guard maxDim > maxSide, maxDim > 0 else { return self }
+        let scale = maxSide / maxDim
+        let newSize = CGSize(width: size.width * scale, height: size.height * scale)
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        return renderer.image { _ in draw(in: CGRect(origin: .zero, size: newSize)) }
+    }
 }
 
 struct TrackRef: Identifiable {

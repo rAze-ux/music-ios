@@ -12,6 +12,7 @@ struct ParsedMeta {
     var disc = 0
     var duration: TimeInterval = 0
     var artwork: Data?
+    var lyrics: String?
 }
 
 enum MetadataReader {
@@ -54,6 +55,16 @@ enum MetadataReader {
         meta.track = number([.iTunesMetadataTrackNumber, .id3MetadataTrackNumber])
         meta.disc = number([.iTunesMetadataDiscNumber, .id3MetadataPartOfASet])
         meta.artwork = AVMetadataItem.metadataItems(from: items, filteredByIdentifier: .commonIdentifierArtwork).first?.dataValue
+        if meta.artwork == nil {
+            for item in items where item.commonKey?.rawValue == "artwork" {
+                meta.artwork = item.dataValue
+                break
+            }
+        }
+        for item in items where item.commonKey?.rawValue == "lyrics" {
+            meta.lyrics = item.stringValue
+            break
+        }
 
         let ext = url.pathExtension.lowercased()
         if ext == "mp3" {
@@ -65,6 +76,7 @@ enum MetadataReader {
             if meta.year == 0 { meta.year = id3.year }
             if meta.track == 0 { meta.track = id3.track }
             if meta.artwork == nil { meta.artwork = id3.artwork }
+            if meta.lyrics == nil { meta.lyrics = id3.lyrics }
         }
 
         if meta.title.isEmpty {
@@ -85,6 +97,7 @@ enum ID3Parser {
         var year = 0
         var track = 0
         var artwork: Data?
+        var lyrics: String?
     }
 
     static func parse(url: URL) -> Result {
@@ -127,6 +140,7 @@ enum ID3Parser {
             case "TCON": result.genre = cleanGenre(clean(text(frame)))
             case "TYER", "TDRC": result.year = Int(clean(text(frame)).prefix { $0.isNumber }) ?? 0
             case "TRCK": result.track = Int(clean(text(frame)).prefix { $0.isNumber }) ?? 0
+            case "USLT": result.lyrics = uslt(frame)
             case "APIC": result.artwork = apic(frame)
             default: break
             }
@@ -201,5 +215,28 @@ enum ID3Parser {
         }
         guard i < bytes.count else { return nil }
         return frame.subdata(in: i..<bytes.count)
+    }
+
+    /// USLT (unsynchronized lyrics): enc(1) + lang(3) + descriptor(0-terminated) + text
+    private static func uslt(_ frame: Data) -> String? {
+        guard frame.count > 4 else { return nil }
+        let bytes = [UInt8](frame)
+        let enc = bytes[0]
+        var i = 4  // enc + lang
+        if enc == 1 || enc == 2 {
+            while i + 1 < bytes.count, !(bytes[i] == 0 && bytes[i + 1] == 0) { i += 2 }
+            i += 2
+        } else {
+            while i < bytes.count, bytes[i] != 0 { i += 1 }
+            i += 1
+        }
+        guard i < bytes.count else { return nil }
+        let body = frame.subdata(in: i..<bytes.count)
+        switch enc {
+        case 1: return String(data: body, encoding: .utf16)
+        case 2: return String(data: body, encoding: .utf16BigEndian)
+        case 3: return String(data: body, encoding: .utf8)
+        default: return String(data: body, encoding: .isoLatin1)
+        }
     }
 }

@@ -14,6 +14,12 @@ struct MusicAppApp: App {
                     player.onTrackPlayed = { track in
                         library.registerPlay(id: track.id)
                     }
+                    player.similarProvider = { track in
+                        library.similarTracks(to: track)
+                    }
+                    player.onBPMAnalyzed = { id, bpm in
+                        library.setBPM(id: id, bpm: bpm)
+                    }
                     library.rescan()
                 }
         }

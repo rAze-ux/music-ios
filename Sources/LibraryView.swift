@@ -5,6 +5,7 @@ struct LibraryView: View {
     @EnvironmentObject var library: LibraryStore
     @State private var section: LibrarySection = .recent
     @State private var showImporter = false
+    @State private var showSettings = false
 
     enum LibrarySection: String, CaseIterable, Identifiable {
         case recent = "Недавние"
@@ -49,11 +50,21 @@ struct LibraryView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
                         showImporter = true
                     } label: {
                         Image(systemName: "plus")
                     }
                 }
+            }
+            .sheet(isPresented: $showSettings) {
+                SettingsView()
             }
             .fileImporter(
                 isPresented: $showImporter,

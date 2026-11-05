@@ -30,6 +30,11 @@ final class LibraryStore: ObservableObject {
         try? FileManager.default.createDirectory(at: musicFolder, withIntermediateDirectories: true)
         loadCache()
         loadPlaylists()
+        NotificationCenter.default.addObserver(
+            forName: .amResetPlayStats, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.resetPlayStats()
+        }
     }
 
     // MARK: - lookup helpers
@@ -117,7 +122,9 @@ final class LibraryStore: ObservableObject {
                     duration: meta.duration,
                     artwork: meta.artwork,
                     addedAt: oldDict[f.rel]?.addedAt ?? Date(),
-                    playCount: oldDict[f.rel]?.playCount ?? 0
+                    playCount: oldDict[f.rel]?.playCount ?? 0,
+                    lyrics: meta.lyrics,
+                    bpm: nil
                 )
                 newTracks.append(track)
             }
@@ -198,6 +205,47 @@ final class LibraryStore: ObservableObject {
            albums[ai].artwork == nil, t.artwork != nil {
             albums[ai].artwork = t.artwork
         }
+        saveCache()
+    }
+
+    func setBPM(id: String, bpm: Double) {
+        guard var t = byID[id] else { return }
+        t.bpm = bpm
+        byID[id] = t
+        if let i = tracks.firstIndex(where: { $0.id == id }) {
+            tracks[i] = t
+        }
+        saveCache()
+    }
+
+    /// Автомикс: ищем похожий трек — сначала по темпу (BPM ±6%), затем по жанру, чуть добавляем популярность.
+    func similarTracks(to track: Track) -> [Track] {
+        var scored: [(Track, Double)] = []
+        for t in tracks where t.id != track.id {
+            var score = Double(t.playCount) * 0.05
+            if let b1 = track.bpm, let b2 = t.bpm, b1 > 0 {
+                let diff = abs(b1 - b2) / b1
+                if diff <= 0.06 {
+                    score += 3
+                } else if diff <= 0.12 {
+                    score += 1
+                }
+            }
+            if !track.genre.isEmpty, t.genre == track.genre {
+                score += 1.5
+            }
+            scored.append((t, score))
+        }
+        guard !scored.isEmpty else { return [] }
+        let top = scored.sorted { $0.1 > $1.1 }.prefix(6)
+        return top.map { $0.0 }.shuffled()
+    }
+
+    func resetPlayStats() {
+        var updated = tracks
+        for i in updated.indices { updated[i].playCount = 0 }
+        tracks = updated
+        rebuildIndexes()
         saveCache()
     }
 
